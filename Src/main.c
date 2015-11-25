@@ -32,6 +32,8 @@
   */
 /* Includes ------------------------------------------------------------------*/
 #include "stm32f1xx_hal.h"
+#include "can-ha-protocol.h"
+#include "dio8_in_out.h"
 
 /* USER CODE BEGIN Includes */
 
@@ -40,6 +42,9 @@
 /* Private variables ---------------------------------------------------------*/
 CAN_HandleTypeDef hcan2;
 CanTxMsgTypeDef CAN_TxMsg;
+CanRxMsgTypeDef CAN_RxMsg;
+uint_fast8_t NewSecond;
+
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
@@ -48,7 +53,6 @@ CanTxMsgTypeDef CAN_TxMsg;
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
-static void MX_GPIO_Init(void);
 static void MX_CAN2_Init(void);
 
 /* USER CODE BEGIN PFP */
@@ -76,7 +80,7 @@ int main(void)
   SystemClock_Config();
 
   /* Initialize all configured peripherals */
-  MX_GPIO_Init();
+  DIO8_GPIO_Config();
   MX_CAN2_Init();
 
   /* USER CODE BEGIN 2 */
@@ -93,25 +97,92 @@ int main(void)
   CAN_TxMsg.Data[5] = 0x11;
   CAN_TxMsg.Data[6] = 0xff;
   CAN_TxMsg.Data[7] = 0xba;
-  
-  hcan2.pTxMsg = &CAN_TxMsg;
 
-  /* USER CODE END 2 */
+    /*
+     * Main program */
+    while (1) {
 
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
-  while (1)
-  {
-      HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_11);      
-      HAL_CAN_Transmit_IT(&hcan2);
-      HAL_Delay(500);
-  /* USER CODE END WHILE */
+        if (DIO8_GetInputState(INPUT0)) {
+            Single_Indication_Write(0, FALSE);
+        } else {
+            Single_Indication_Write(0, TRUE);
+        }
 
-  /* USER CODE BEGIN 3 */
+        if (DIO8_GetInputState(INPUT1)) {
+            Single_Indication_Write(1, TRUE);
+        } else {
+            Single_Indication_Write(1, FALSE);
+        }
+        
+        if (DIO8_GetInputState(INPUT2)) {
+            Single_Indication_Write(2, TRUE);
+        } else {
+            Single_Indication_Write(2, FALSE);
+        }
+        
+        if (DIO8_GetInputState(INPUT3)) {
+            Single_Indication_Write(3, TRUE);
+        } else {
+            Single_Indication_Write(3, FALSE);
+        }
+        
+        if (DIO8_GetInputState(INPUT4)) {
+            Single_Indication_Write(4, TRUE);
+        } else {
+            Single_Indication_Write(4, FALSE);
+        }
+        
+        if (DIO8_GetInputState(INPUT5)) {
+            Single_Indication_Write(5, TRUE);
+        } else {
+            Single_Indication_Write(5, FALSE);
+        }
+        
+        if (DIO8_GetInputState(INPUT6)) {
+            Single_Indication_Write(6, TRUE);
+        } else {
+            Single_Indication_Write(6, FALSE);
+        }
+        
+        if (DIO8_GetInputState(INPUT7)) {
+            Single_Indication_Write(7, TRUE);
+        } else {
+            Single_Indication_Write(7, FALSE);
+        }
+        
+        /*
+         * Functions that only starts one time per second */
+        if (NewSecond) {
+            NewSecond = 0;
+          
+            HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_11);
+            
+            /* Can */
+            CAN_HA_Refresh();
+        }
 
-  }
-  /* USER CODE END 3 */
-
+        /*
+         * Test buffer, if there are new message to be send */
+        static CanHA_MsgTypeDef Msg;    
+        if (CANHA_GetMsgFromBuf(&Msg) == TRUE
+                && hcan2.State != HAL_CAN_STATE_BUSY_TX
+                && hcan2.State != HAL_CAN_STATE_BUSY_TX_RX) {
+            CAN_TxMsg.ExtId = ((uint32_t)Msg.MessageType << 18) | Msg.Identifier;
+            CAN_TxMsg.RTR = CAN_RTR_DATA;
+            CAN_TxMsg.IDE = CAN_ID_EXT;
+            CAN_TxMsg.DLC = Msg.DataLength;
+            
+            for (uint_fast8_t i = 0; i < 8; i++) {
+                CAN_TxMsg.Data[i] = Msg.Data[i];
+            }
+            
+            HAL_CAN_Transmit_IT(&hcan2);
+        }
+        
+        /*
+         * Sleep */
+        HAL_PWR_EnterSLEEPMode(0, PWR_SLEEPENTRY_WFI);
+    }
 }
 
 /** System Clock Configuration
@@ -148,98 +219,61 @@ void SystemClock_Config(void)
 }
 
 /* CAN2 init function */
-void MX_CAN2_Init(void)
-{
+void MX_CAN2_Init(void) {
+    hcan2.Instance = CAN2;
+    hcan2.pTxMsg = &CAN_TxMsg;
+    hcan2.pRxMsg = &CAN_RxMsg;
 
-  hcan2.Instance = CAN2;
-  hcan2.Init.Prescaler = 240;
-  hcan2.Init.Mode = CAN_MODE_NORMAL;
-  hcan2.Init.SJW = CAN_SJW_1TQ;
-  hcan2.Init.BS1 = CAN_BS1_6TQ;
-  hcan2.Init.BS2 = CAN_BS2_8TQ;
-  hcan2.Init.TTCM = DISABLE;
-  hcan2.Init.ABOM = DISABLE;
-  hcan2.Init.AWUM = DISABLE;
-  hcan2.Init.NART = DISABLE;
-  hcan2.Init.RFLM = DISABLE;
-  hcan2.Init.TXFP = DISABLE;
-  HAL_CAN_Init(&hcan2);
-
-}
-
-/** Configure pins as 
-        * Analog 
-        * Input 
-        * Output
-        * EVENT_OUT
-        * EXTI
-        * Free pins are configured automatically as Analog (this feature is enabled through 
-        * the Code Generation settings)
-*/
-void MX_GPIO_Init(void)
-{
-
-  GPIO_InitTypeDef GPIO_InitStruct;
-
-  /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOC_CLK_ENABLE();
-  __HAL_RCC_GPIOD_CLK_ENABLE();
-  __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
-
-  /*Configure GPIO pins : PC13 PC14 PC15 PC0 
-                           PC1 PC2 PC3 PC4 
-                           PC5 PC10 PC11 PC12 */
-  GPIO_InitStruct.Pin = GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15|GPIO_PIN_0 
-                          |GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3|GPIO_PIN_4 
-                          |GPIO_PIN_5|GPIO_PIN_10|GPIO_PIN_11|GPIO_PIN_12;
-  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : PA0 PA1 PA2 PA3 
-                           PA4 PA5 PA6 PA7 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3 
-                          |GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : PB0 PB1 PB2 PB10 
-                           PB11 PB12 PB13 PB14 
-                           PB15 PB3 PB4 PB7 
-                           PB8 PB9 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_10 
-                          |GPIO_PIN_11|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14 
-                          |GPIO_PIN_15|GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_7 
-                          |GPIO_PIN_8|GPIO_PIN_9;
-  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : PC6 PC7 PC8 PC9 */
-  GPIO_InitStruct.Pin = GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8|GPIO_PIN_9;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Speed = GPIO_SPEED_LOW;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : PA8 PA9 PA10 PA11 */
-  GPIO_InitStruct.Pin = GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Speed = GPIO_SPEED_LOW;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : PA12 PA13 PA14 PA15 */
-  GPIO_InitStruct.Pin = GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15;
-  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : PD2 */
-  GPIO_InitStruct.Pin = GPIO_PIN_2;
-  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
-  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
-
+    hcan2.Init.Prescaler = 240;
+    hcan2.Init.Mode = CAN_MODE_NORMAL;
+    hcan2.Init.SJW = CAN_SJW_1TQ;
+    hcan2.Init.BS1 = CAN_BS1_6TQ;
+    hcan2.Init.BS2 = CAN_BS2_8TQ;
+    hcan2.Init.TTCM = DISABLE;
+    hcan2.Init.ABOM = DISABLE;
+    hcan2.Init.AWUM = DISABLE;
+    hcan2.Init.NART = DISABLE;
+    hcan2.Init.RFLM = DISABLE;
+    hcan2.Init.TXFP = DISABLE;
+    HAL_CAN_Init(&hcan2);
 }
 
 /* USER CODE BEGIN 4 */
+
+void HAL_CAN_TxCpltCallback(CAN_HandleTypeDef* hcan) {
+    CANHA_MsgSent();
+    
+    CanHA_MsgTypeDef Msg;    
+    if (CANHA_GetMsgFromBuf(&Msg) == TRUE) {
+        hcan->pTxMsg->ExtId = ((uint32_t)Msg.MessageType << 18) | Msg.Identifier;
+        hcan->pTxMsg->RTR = CAN_RTR_DATA;
+        hcan->pTxMsg->IDE = CAN_ID_EXT;
+        hcan->pTxMsg->DLC = Msg.DataLength;
+        
+        for (uint_fast8_t i = 0; i < 8; i++) {
+            hcan->pTxMsg->Data[i] = Msg.Data[i];
+        }
+        
+        HAL_CAN_Transmit_IT(hcan);
+    }
+}
+
+void HAL_CAN_RxCpltCallback(CAN_HandleTypeDef* hcan) {
+    if (hcan->pRxMsg->IDE == CAN_ID_EXT) {
+        CanHA_MsgTypeDef Msg;
+        Msg.MessageType = (uint_least16_t)(hcan->pRxMsg->ExtId >>18);
+        Msg.Identifier = hcan->pRxMsg->ExtId & 0x3FFFE;
+        Msg.DataLength = (uint_least8_t)hcan->pRxMsg->DLC;
+        
+        for (uint_fast8_t i = 0; i < Msg.DataLength; i++) {
+            Msg.Data[i] = hcan->pRxMsg->Data[i];
+        }
+        
+        CAN_HA_GetMessage(&Msg);
+    }
+
+    HAL_CAN_Receive_IT(hcan, CAN_FIFO0);
+}
 
 /* USER CODE END 4 */
 

@@ -41,24 +41,31 @@
 
 /* External variables --------------------------------------------------------*/
 extern CAN_HandleTypeDef hcan2;
+extern uint_fast8_t NewSecond;
 
 /******************************************************************************/
 /*            Cortex-M3 Processor Interruption and Exception Handlers         */ 
 /******************************************************************************/
 
 /**
-* @brief This function handles System tick timer.
-*/
-void SysTick_Handler(void)
-{
-  /* USER CODE BEGIN SysTick_IRQn 0 */
+  * @brief This function handles System tick timer.
+  */
+void SysTick_Handler(void) {
+    HAL_IncTick();
+    HAL_SYSTICK_IRQHandler();
 
-  /* USER CODE END SysTick_IRQn 0 */
-  HAL_IncTick();
-  HAL_SYSTICK_IRQHandler();
-  /* USER CODE BEGIN SysTick_IRQn 1 */
+    static uint_fast16_t counter = 0;
+    counter++;
+    
+    if (counter & 8) {
+        DIO8_InputDebounce();
+    }
 
-  /* USER CODE END SysTick_IRQn 1 */
+    if (counter > 999) {
+        counter = 0;
+        NewSecond = 1;
+        UnixTimestamp++;
+    }
 }
 
 /******************************************************************************/

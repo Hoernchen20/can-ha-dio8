@@ -23,11 +23,12 @@ LDFLAGS = -mcpu=cortex-m3 -mfloat-abi=soft -mthumb -ffunction-sections -fdata-se
 #Objdump Flags
 ODFLAGS = -d -t -C
 
-OBJ = main.o stm32f1xx_hal_msp.o stm32f1xx_it.o
+OBJ = main.o stm32f1xx_hal_msp.o stm32f1xx_it.o can-ha-protocol.o dio8_in_out.o
 OBJ += startup_stm32f105xc.o system_stm32f1xx.o
 OBJ += stm32f1xx_hal.o stm32f1xx_hal_cortex.o
 OBJ += stm32f1xx_hal_gpio.o
-OBJ += stm32f1xx_hal_can.o stm32f1xx_hal_rcc.o stm32f1xx_hal_rcc_ex.o
+OBJ += stm32f1xx_hal_can.o stm32f1xx_hal_rcc.o
+OBJ += stm32f1xx_hal_rcc_ex.o stm32f1xx_hal_pwr.o
 
 DIO8: $(OBJ)
 	$(CC) $(CFLAGS) -o DIO8.elf $(OBJ) $(LDFLAGS)
